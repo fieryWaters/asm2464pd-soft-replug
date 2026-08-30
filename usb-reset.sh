@@ -21,14 +21,14 @@
 # report "No power switching"), so the MCU reboot is the only software path.
 #
 # SAFETY: the target is located by VID:PID through sysfs, never by guessing an
-# sg number. The KVM (NVDA8000:01, also a UAS device) can never match 2d01:3666.
+# sg number. Other UAS devices can never match the OWC's 1e91:de79 identity.
 #
 # Install: sudo install -m755 usb-reset.sh /usr/local/bin/
 
 set -uo pipefail
 
-VID=2d01 PID=3666            # ITHOO USB4.0 SSD Drive Enclosure (ASM2464PD)
-MOUNT="/mnt/usb2t"
+VID=1e91 PID=de79            # OWC Express 1M2 (ASM2464PD)
+MOUNT="/mnt/external_ssd"
 WANT_SPEED=20000
 MIN_MBPS=200                 # USB 2.0 tops out ~41; Gen2x2 measured 1200
 REMOUNT=0
@@ -72,6 +72,7 @@ speed=$(<"$dev/speed")
 log "enclosure at $dev, link=${speed}M rx=$(cat "$dev/rx_lanes" 2>/dev/null)/tx=$(cat "$dev/tx_lanes" 2>/dev/null)"
 
 if [[ "$speed" == "$WANT_SPEED" ]]; then
+    mountpoint -q "$MOUNT" || die "link is healthy but $MOUNT is not mounted"
     log "already at ${WANT_SPEED}M - nothing to do"
     exit 0
 fi
@@ -106,17 +107,12 @@ blk=$(find_blk "$newdev")
 log "re-enumerated: link=${speed}M lanes=${rx}/${tx} blk=/dev/${blk:-unknown}"
 
 if [[ "$speed" != "$WANT_SPEED" ]]; then
-    [[ "$REMOUNT" == 1 && -n "$blk" ]] && sudo mount "$MOUNT" && log "remounted $MOUNT"
-    die "still ${speed}M after MCU reset - physical replug required"
+    die "still ${speed}M after MCU reset - leaving $MOUNT unmounted"
 fi
 
 [[ -n "$blk" ]] || die "no block device appeared"
 read -r mbps unit <<<"$(measure "$blk")"
 log "throughput: ${mbps} ${unit} (Gen2x2 baseline: 1.2 GB/s; USB2 was 41 MB/s)"
-
-if [[ "$REMOUNT" == 1 ]] || ! mountpoint -q "$MOUNT"; then
-    sudo mount "$MOUNT" && log "remounted $MOUNT"
-fi
 
 # an exit code is not proof - gate on the measurement
 case "$unit" in
@@ -125,5 +121,10 @@ case "$unit" in
     *)    ok=0 ;;
 esac
 [[ "$ok" == 1 ]] || die "link says ${speed}M but throughput is ${mbps} ${unit}"
+
+if [[ "$REMOUNT" == 1 ]] || ! mountpoint -q "$MOUNT"; then
+    sudo mount "$MOUNT" || die "cannot mount $MOUNT"
+    log "remounted $MOUNT"
+fi
 
 log "OK: ${WANT_SPEED}M ${rx}/${tx} lanes, ${mbps} ${unit}, $MOUNT mounted"

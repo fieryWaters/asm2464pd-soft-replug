@@ -14,7 +14,8 @@
 
 set -uo pipefail
 
-VID=2d01 PID=3666
+VID=1e91 PID=de79
+MOUNT=/mnt/external_ssd
 WANT_SPEED=20000
 MOTD=/etc/motd.d/99-usb-link
 STAMP=/var/lib/misc/usb-link-check.state
@@ -48,17 +49,17 @@ fi
 
 # --- degraded ---------------------------------------------------------------
 logger -p user.warning -t usb-link-check \
-    "DEGRADED: /mnt/usb2t link is ${speed}M (${rx}/${tx} lanes), expected ${WANT_SPEED}M 2/2 - replug required"
+    "DEGRADED: $MOUNT link is ${speed}M (${rx}/${tx} lanes), expected ${WANT_SPEED}M 2/2 - reset required"
 
 mkdir -p "$(dirname "$MOTD")" 2>/dev/null
 cat > "$MOTD" <<EOF
 
   ##  USB DISK DEGRADED  ##
-  /mnt/usb2t is linked at ${speed}M (${rx}/${tx} lanes), not ${WANT_SPEED}M 2/2.
+  $MOUNT is linked at ${speed}M (${rx}/${tx} lanes), not ${WANT_SPEED}M 2/2.
   That is ~41 MB/s instead of ~2 GB/s.
 
   Cause: the enclosure was attached during boot. It only trains Gen 2x2 when it
-  attaches AFTER Linux is up. Physically replug it, then run:  usb-reset.sh
+  attaches AFTER Linux is up. Run:  sudo usb-reset.sh
   Details: FINDINGS.md
 
 EOF

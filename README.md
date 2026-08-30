@@ -11,6 +11,9 @@ This repo documents the root cause and ships a **software fix**: a vendor SCSI
 command that makes the bridge reboot itself and retrain the link, plus a systemd
 unit that applies it automatically at boot. No cable touching, no extra hardware.
 
+This fork is configured for an **OWC Express 1M2** (`1e91:de79`) mounted at
+`/mnt/external_ssd` on an ASUS Ascent GX10.
+
 ```
 [  1.5s]  usb 5-1: new high-speed USB device number 2 using xhci-hcd    ← boots degraded
 [ 14.4s]  usb 5-1: USB disconnect, device number 2                      ← fix fires
@@ -107,12 +110,13 @@ sudo systemctl daemon-reload
 sudo systemctl enable usb-gen2x2-fix.service
 ```
 
-Edit the variables at the top of `usb-reset.sh` first (`VID`/`PID`, mount
-point, expected speed). At boot the unit checks the link and, only if degraded:
+At boot the unit waits for the fstab mount, checks the link and, only if degraded:
 unmounts cleanly → sends the CPU reset → waits for re-enumeration → **verifies
-by measured throughput, not exit code** → remounts. Healthy or absent device →
-exits 0 untouched. If the reset ever fails, the unit exits non-zero and leaves
-the disk unmounted rather than silently running 25–50× slow.
+by measured throughput, not exit code** → remounts. A healthy, mounted device
+exits untouched. If the drive is absent, unmounted, or the reset fails, the unit exits
+non-zero, leaves the disk unmounted, and prevents Docker from starting rather
+than silently running against missing or degraded storage. Normal OS boot still
+continues.
 
 Optional: `usb-link-check.{sh,service,timer}` — an hourly/boot-time monitor
 that writes a loud MOTD warning if the disk is ever found on a degraded link.
