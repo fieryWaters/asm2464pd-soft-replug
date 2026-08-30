@@ -31,7 +31,6 @@ VID=1e91 PID=de79            # OWC Express 1M2 (ASM2464PD)
 MOUNT="/mnt/external_ssd"
 WANT_SPEED=20000
 MIN_MBPS=200                 # USB 2.0 tops out ~41; Gen2x2 measured 1200
-REMOUNT=0
 
 log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 die() { log "ERROR: $*"; exit 1; }
@@ -84,7 +83,6 @@ if mountpoint -q "$MOUNT"; then
     sync
     sudo umount "$MOUNT" || die "cannot unmount $MOUNT (fuser -vm $MOUNT to see holder)"
     log "unmounted $MOUNT"
-    REMOUNT=1
 fi
 
 # the software replug: CPU-reset the ASM2464PD; it re-enumerates in ~3 s
@@ -122,8 +120,8 @@ case "$unit" in
 esac
 [[ "$ok" == 1 ]] || die "link says ${speed}M but throughput is ${mbps} ${unit}"
 
-if [[ "$REMOUNT" == 1 ]] || ! mountpoint -q "$MOUNT"; then
-    sudo mount "$MOUNT" || die "cannot mount $MOUNT"
+if ! mountpoint -q "$MOUNT"; then
+    sudo mount "$MOUNT" || mountpoint -q "$MOUNT" || die "cannot mount $MOUNT"
     log "remounted $MOUNT"
 fi
 
